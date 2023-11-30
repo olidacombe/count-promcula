@@ -1,4 +1,4 @@
-//! expose a `secondsAlive` metric
+//! expose an `alive_seconds` metric
 
 pub mod cli;
 

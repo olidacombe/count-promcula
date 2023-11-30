@@ -8,6 +8,6 @@
 
 <!-- cargo-rdme start -->
 
-expose a `secondsAlive` metric
+expose an `alive_seconds` metric
 
 <!-- cargo-rdme end -->
