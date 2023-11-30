@@ -4,30 +4,34 @@ use std::{future::ready, time::Duration};
 use tokio::time::sleep;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
+use count_promcula::cli::{self, Cli};
+
 fn metrics_app() -> Router {
     let recorder_handle = setup_metrics_recorder();
     Router::new().route("/metrics", get(move || ready(recorder_handle.render())))
 }
 
-async fn start_count_task() {
-    // TODO die after specified period if given
+async fn start_count_task(seconds_to_live: Option<u16>) {
+    let mut count: u16 = 0;
     loop {
         sleep(Duration::from_secs(1)).await;
         metrics::increment_counter!("alive_seconds");
+        if let Some(limit) = seconds_to_live {
+            if count >= limit {
+                break;
+            }
+            count += 1;
+        }
     }
 }
 
-async fn start_metrics_server() {
+async fn start_metrics_server(address: &str) {
     let app = metrics_app();
 
-    let listener = tokio::net::TcpListener::bind("127.0.0.1:3001")
-        .await
-        .unwrap();
-    tracing::debug!("listening on {}", listener.local_addr().unwrap());
-    tracing::info!(
-        "Query Prometheus on http://{}/metrics",
-        listener.local_addr().unwrap()
-    );
+    let listener = tokio::net::TcpListener::bind(address).await.unwrap();
+    let listening_on = listener.local_addr().unwrap();
+    tracing::debug!("listening on {listening_on}");
+    tracing::info!("Query Prometheus on http://{listening_on}/metrics");
     axum::serve(listener, app).await.unwrap();
 }
 
@@ -41,7 +45,15 @@ async fn main() {
         .with(tracing_subscriber::fmt::layer())
         .init();
 
-    let (_counter, _metrics_server) = tokio::join!(start_count_task(), start_metrics_server());
+    let Cli {
+        seconds,
+        address,
+        port,
+    } = cli::parse().unwrap();
+
+    let address = format!("{address}:{port}");
+    let (_counter, _metrics_server) =
+        tokio::join!(start_count_task(seconds), start_metrics_server(&address));
 }
 
 fn setup_metrics_recorder() -> PrometheusHandle {

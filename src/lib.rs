@@ -1,5 +1,7 @@
 //! expose a `secondsAlive` metric
 
+pub mod cli;
+
 #[cfg(test)]
 mod tests {
     #[test]
