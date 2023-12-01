@@ -13,6 +13,10 @@ fn metrics_app() -> Router {
 
 async fn start_count_task(seconds_to_live: Option<u16>) {
     let mut count: u16 = 0;
+    if let Some(limit) = seconds_to_live {
+        tracing::debug!("Staying alive for {limit} seconds");
+    }
+
     loop {
         sleep(Duration::from_secs(1)).await;
         metrics::increment_counter!("alive_seconds");
@@ -21,6 +25,7 @@ async fn start_count_task(seconds_to_live: Option<u16>) {
                 break;
             }
             count += 1;
+            tracing::trace!("Been alive for {count}s")
         }
     }
 }
@@ -52,8 +57,10 @@ async fn main() {
     } = cli::parse().unwrap();
 
     let address = format!("{address}:{port}");
-    let (_counter, _metrics_server) =
-        tokio::join!(start_count_task(seconds), start_metrics_server(&address));
+    tokio::select! {
+        _ = start_count_task(seconds) => {}
+        _ = start_metrics_server(&address) => {}
+    };
 }
 
 fn setup_metrics_recorder() -> PrometheusHandle {
